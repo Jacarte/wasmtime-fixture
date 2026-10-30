@@ -1,0 +1,127 @@
+#!/bin/bash
+set -euo pipefail
+cd /testbed
+git checkout ec63b69f3da9783db784eef6ba67635385926a2a -- crates/wasi-http/tests/all/p3/mod.rs
+rm -f -- crates/test-programs/src/bin/p3_http_forward_body.rs
+git apply - <<'SAFE_HIDDEN_PATCH'
+diff --git a/crates/test-programs/src/bin/p3_http_forward_body.rs b/crates/test-programs/src/bin/p3_http_forward_body.rs
+new file mode 100644
+index 0000000..1d46769
+--- /dev/null
++++ b/crates/test-programs/src/bin/p3_http_forward_body.rs
+@@ -0,0 +1,34 @@
++use test_programs::p3::{
++    service::exports::wasi::http::handler::Guest as Handler,
++    wasi::http::types::{ErrorCode, Fields, Request, Response},
++    wit_future,
++};
++
++struct Component;
++
++test_programs::p3::service::export!(Component);
++
++impl Handler for Component {
++    /// Forward the request body as the response body, optionally reading from
++    /// it or replacing its trailers first, depending on the `x-mode` header.
++    async fn handle(request: Request) -> Result<Response, ErrorCode> {
++        let mode = request
++            .get_headers()
++            .get("x-mode")
++            .pop()
++            .unwrap_or_default();
++        let (mut body, mut trailers) = Request::consume_body(request, wit_future::new(|| Ok(())).1);
++        match &mode[..] {
++            b"read-0" => _ = body.read(Vec::new()).await,
++            b"read-1" => _ = body.read(Vec::with_capacity(1)).await,
++            b"trailers-error" => {
++                trailers = wit_future::new(|| Err(ErrorCode::InternalError(None))).1;
++            }
++            _ => {}
++        }
++        Ok(Response::new(Fields::new(), Some(body), trailers).0)
++    }
++}
++
++// Unused function; required since this file is built as a `bin`:
++fn main() {}
+diff --git a/crates/wasi-http/tests/all/p3/mod.rs b/crates/wasi-http/tests/all/p3/mod.rs
+index 981cd49..9f436f5 100644
+--- a/crates/wasi-http/tests/all/p3/mod.rs
++++ b/crates/wasi-http/tests/all/p3/mod.rs
+@@ -1257,3 +1257,62 @@ async fn p3_http_named_imports() -> Result<()> {
+     )
+     .await
+ }
++
++/// A guest forwarding a host body it has partly read, or with its own
++/// trailers, as its response body.
++mod p3_http_forward_body {
++    use super::*;
++
++    async fn forward(mode: &str) -> Result<Collected<Bytes>> {
++        let mut trailers = http::HeaderMap::new();
++        trailers.insert("x-host", HeaderValue::from_static("host"));
++        // Response body consists of "hello world" two frames followed by a
++        // trailer.
++        let frames = [
++            http_body::Frame::data(Bytes::from_static(b"hello ")),
++            http_body::Frame::data(Bytes::from_static(b"world")),
++            http_body::Frame::trailers(trailers),
++        ];
++        let req = http::Request::builder()
++            .uri("http://localhost/")
++            .header("x-mode", mode)
++            .body(http_body_util::StreamBody::new(futures::stream::iter(
++                frames.map(Ok::<_, ErrorCode>),
++            )))?;
++        let (tx, _) = oneshot::channel();
++        let res = run_http(P3_HTTP_FORWARD_BODY_COMPONENT, req, tx)
++            .await?
++            .unwrap();
++        Ok(res.into_body())
++    }
++
++    fn assert_host_trailers(body: &Collected<Bytes>) {
++        let trailers = body.trailers().expect("missing trailers");
++        assert_eq!(trailers.len(), 1, "{trailers:?}");
++        assert_eq!(trailers["x-host"], "host");
++    }
++
++    #[test_log::test(tokio::test(flavor = "multi_thread"))]
++    async fn read_0() -> Result<()> {
++        let body = forward("read-0").await?;
++        assert_host_trailers(&body);
++        assert_eq!(body.to_bytes(), "hello world");
++        Ok(())
++    }
++
++    #[test_log::test(tokio::test(flavor = "multi_thread"))]
++    async fn read_1() -> Result<()> {
++        let body = forward("read-1").await?;
++        assert_host_trailers(&body);
++        assert_eq!(body.to_bytes(), "ello world");
++        Ok(())
++    }
++
++    #[ignore = "Enable when https://github.com/bytecodealliance/wasmtime/issues/15026 has been fixed."]
++    #[test_log::test(tokio::test(flavor = "multi_thread"))]
++    async fn trailers_error() -> Result<()> {
++        let res = forward("trailers-error").await;
++        assert!(res.is_err(), "{res:?}");
++        Ok(())
++    }
++}
+SAFE_HIDDEN_PATCH
+printf '%s\n' '>>>>> Start Test Output'
+set +e
+export CARGO_NET_OFFLINE=true
+(
+cargo test --locked --offline -p wasmtime-wasi-http --test all p3::p3_http_forward_body:: -- --test-threads=1
+a=$?
+cargo test --locked --offline -p wasmtime-wasi-http --test all p3::p3_http_echo -- --exact --test-threads=1
+b=$?
+exit $((a || b))
+)
+status=$?
+printf '%s\n' '>>>>> End Test Output'
+exit "$status"

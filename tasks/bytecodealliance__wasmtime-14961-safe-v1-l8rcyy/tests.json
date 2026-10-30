@@ -1,0 +1,9 @@
+{
+  "FAIL_TO_PASS": [
+    "benchmark_registration",
+    "p3::p3_http_api_bench"
+  ],
+  "PASS_TO_PASS": [
+    "proxy_benchmark_control"
+  ]
+}

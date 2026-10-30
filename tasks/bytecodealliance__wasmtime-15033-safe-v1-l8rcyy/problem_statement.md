@@ -1,0 +1,1 @@
+Linking core modules inside a component must accept a function whose declared type is a compatible subtype of the imported function type. It must not assert exact type-index equality for valid subtype imports. Preserve ordinary linking and execution.

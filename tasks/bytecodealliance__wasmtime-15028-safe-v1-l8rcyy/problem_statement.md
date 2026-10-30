@@ -1,0 +1,1 @@
+When a guest traps while streaming an HTTP response body, report an incomplete-body/protocol error instead of presenting normal end-of-stream to the client. Apply this to both WASIp2 and WASIp3 HTTP paths. Successful complete responses must remain unchanged.

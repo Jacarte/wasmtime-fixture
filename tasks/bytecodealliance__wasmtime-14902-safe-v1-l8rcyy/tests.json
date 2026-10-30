@@ -1,0 +1,9 @@
+{
+  "FAIL_TO_PASS": [
+    "conflicting_serve_flags"
+  ],
+  "PASS_TO_PASS": [
+    "serve_help_control",
+    "single_flags_control"
+  ]
+}

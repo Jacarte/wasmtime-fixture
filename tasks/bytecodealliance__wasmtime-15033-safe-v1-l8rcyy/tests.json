@@ -1,0 +1,8 @@
+{
+  "FAIL_TO_PASS": [
+    "check_core_import_func_subtype"
+  ],
+  "PASS_TO_PASS": [
+    "ordinary_component_control"
+  ]
+}

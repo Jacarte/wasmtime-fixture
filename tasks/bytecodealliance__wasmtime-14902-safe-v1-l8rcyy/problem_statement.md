@@ -1,0 +1,1 @@
+wasmtime serve must reject specifying both --addr and --systemd-listenfd, rather than silently ignoring the address. Emit a clear CLI argument-conflict diagnostic naming both flags. Either option alone remains accepted; without an explicit address or socket inheritance, retain the default 0.0.0.0:8080 address.

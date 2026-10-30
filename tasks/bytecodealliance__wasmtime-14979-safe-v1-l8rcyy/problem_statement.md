@@ -1,0 +1,1 @@
+Add public Global::get_numeric(&self, store: impl AsContext) -> Option<Val>. It returns the current i32, i64, f32, f64 or v128 value using shared store access, and None for reference-typed globals. Preserve the behavior of Global::get and Global::set. This API task is evaluated by consumer compilation plus runtime checks, not solely an existing-method regression.

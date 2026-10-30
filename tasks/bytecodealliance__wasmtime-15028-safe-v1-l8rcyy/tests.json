@@ -1,0 +1,10 @@
+{
+  "FAIL_TO_PASS": [
+    "cli_tests::test_programs::p2_cli_serve_trap_mid_body",
+    "cli_tests::test_programs::p3_cli_serve_trap_mid_body"
+  ],
+  "PASS_TO_PASS": [
+    "cli_tests::test_programs::p2_cli_serve_hello_world",
+    "cli_tests::test_programs::p3_cli_serve_hello_world"
+  ]
+}

@@ -1,0 +1,76 @@
+diff --git a/crates/wasmtime/tests/pepi_numeric_contract.rs b/crates/wasmtime/tests/pepi_numeric_contract.rs
+new file mode 100644
+--- /dev/null
++++ b/crates/wasmtime/tests/pepi_numeric_contract.rs
+@@ -0,0 +1,26 @@
++use wasmtime::{AsContext, Engine, Global, GlobalType, Mutability, Store, Val, ValType, V128};
++fn shared_read(global: &Global, store: impl AsContext) -> Option<Val> {
++    global.get_numeric(store)
++}
++#[test]
++fn numeric_contract() -> wasmtime::Result<()> {
++    let engine = Engine::default();
++    let mut store = Store::new(&engine, ());
++    let i = Global::new(&mut store, GlobalType::new(ValType::I32, Mutability::Var), Val::I32(73))?;
++    assert_eq!(shared_read(&i, &store).and_then(|v| v.i32()), Some(73));
++    i.set(&mut store, Val::I32(-91))?;
++    assert_eq!(shared_read(&i, store.as_context()).and_then(|v| v.i32()), Some(-91));
++    let l = Global::new(&mut store, GlobalType::new(ValType::I64, Mutability::Const), Val::I64(-9223372036854775807))?;
++    assert_eq!(shared_read(&l, &store).and_then(|v| v.i64()), Some(-9223372036854775807));
++    let f = Global::new(&mut store, GlobalType::new(ValType::F32, Mutability::Const), Val::F32(0x80000000))?;
++    assert!(matches!(shared_read(&f, &store), Some(Val::F32(0x80000000))));
++    let d = Global::new(&mut store, GlobalType::new(ValType::F64, Mutability::Const), Val::F64(0x7ff8000000000042))?;
++    assert!(matches!(shared_read(&d, &store), Some(Val::F64(0x7ff8000000000042))));
++    let v = Global::new(&mut store, GlobalType::new(ValType::V128, Mutability::Const), Val::V128(V128::from(0x123456789abcdef0123456789abcdef0u128)))?;
++    assert_eq!(shared_read(&v, &store).and_then(|v| v.v128()), Some(V128::from(0x123456789abcdef0123456789abcdef0u128)));
++    for (ty,val) in [(ValType::FUNCREF,Val::null_func_ref()),(ValType::EXTERNREF,Val::null_extern_ref())] {
++        let r = Global::new(&mut store, GlobalType::new(ty, Mutability::Const), val)?;
++        assert!(shared_read(&r, &store).is_none());
++    }
++    Ok(())
++}
+diff --git a/crates/wasmtime/tests/pepi_global_control.rs b/crates/wasmtime/tests/pepi_global_control.rs
+new file mode 100644
+--- /dev/null
++++ b/crates/wasmtime/tests/pepi_global_control.rs
+@@ -0,0 +1,12 @@
++use wasmtime::{Engine,Global,GlobalType,Mutability,Store,Val,ValType};
++#[test]
++fn existing_global_control() -> wasmtime::Result<()> {
++    let mut store=Store::new(&Engine::default(),());
++    let g=Global::new(&mut store,GlobalType::new(ValType::I32,Mutability::Var),Val::I32(13))?;
++    assert_eq!(g.get(&mut store).i32(),Some(13));
++    g.set(&mut store,Val::I32(-29))?;
++    assert_eq!(g.get(&mut store).i32(),Some(-29));
++    let r=Global::new(&mut store,GlobalType::new(ValType::FUNCREF,Mutability::Const),Val::null_func_ref())?;
++    assert!(matches!(r.get(&mut store),Val::FuncRef(None)));
++    Ok(())
++}
+diff --git a/pepi_api_contract.py b/pepi_api_contract.py
+new file mode 100644
+--- /dev/null
++++ b/pepi_api_contract.py
+@@ -0,0 +1,23 @@
++"""API-addition contract: missing-method is expected base failure, not a behavioral regression."""
++import re
++import subprocess
++import sys
++
++def run(target):
++    p=subprocess.run(['cargo','test','--locked','--offline','-p','wasmtime','--test',target,'--','--test-threads=1'],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
++    print(p.stdout,flush=True)
++    return p
++control=run('pepi_global_control')
++if control.returncode or '1 passed' not in control.stdout:
++    raise SystemExit('SETUP FAILURE: existing API control failed')
++result=run('pepi_numeric_contract')
++if result.returncode:
++    codes=re.findall(r'error\[(E\d+)\]',result.stdout)
++    if codes!=['E0599'] or 'get_numeric' not in result.stdout or 'no method named' not in result.stdout:
++        raise SystemExit('SETUP FAILURE: failure was not solely the missing public get_numeric method')
++    print('Expected base API absence: only E0599 for get_numeric')
++    print('test numeric_api_contract ... FAILED')
++    sys.exit(1)
++if '1 passed' not in result.stdout:
++    raise SystemExit('SETUP FAILURE: consumer runtime assertions were not executed')
++print('test numeric_api_contract ... ok')

@@ -1,0 +1,8 @@
+{
+  "FAIL_TO_PASS": [
+    "numeric_api_contract"
+  ],
+  "PASS_TO_PASS": [
+    "existing_global_control"
+  ]
+}

@@ -1,0 +1,1 @@
+Fix lost buffered HTTP body bytes when a guest forwards a host-provided body after a partial read. A zero-length read must preserve the full body; consuming one byte must leave the remainder in order. Preserve trailing headers and the underlying remaining frames, retaining the existing host-body fast path where possible.

@@ -1,0 +1,85 @@
+diff --git a/crates/environ/src/fact.rs b/crates/environ/src/fact.rs
+index 0878fa4..8c61e80 100644
+--- a/crates/environ/src/fact.rs
++++ b/crates/environ/src/fact.rs
+@@ -952,7 +952,45 @@ impl Options {
+     ) -> Option<&'a [FlatType]> {
+         let flat = types.flat_types(ty)?;
+         match self.data_model {
+-            DataModel::Gc {} => todo!("CM+GC"),
++            // These types lower to a scalar core value type under the GC data
++            // model, which is the same flattening that the linear memory data
++            // model uses, and which does not depend on the width of memory.
++            // Therefore the `memory32` list is reused here.
++            //
++            // See https://github.com/WebAssembly/component-model/issues/525.
++            DataModel::Gc {} => match ty {
++                InterfaceType::Bool
++                | InterfaceType::U8
++                | InterfaceType::S8
++                | InterfaceType::U16
++                | InterfaceType::S16
++                | InterfaceType::U32
++                | InterfaceType::S32
++                | InterfaceType::U64
++                | InterfaceType::S64
++                | InterfaceType::Float32
++                | InterfaceType::Float64
++                | InterfaceType::Char
++                | InterfaceType::Enum(_)
++                | InterfaceType::Flags(_) => Some(flat.memory32),
++
++                // These lower to a GC `struct`/`array` reference or to
++                // `externref`, neither of which FACT can translate yet.
++                InterfaceType::String
++                | InterfaceType::Record(_)
++                | InterfaceType::Variant(_)
++                | InterfaceType::List(_)
++                | InterfaceType::Map(_)
++                | InterfaceType::Tuple(_)
++                | InterfaceType::Option(_)
++                | InterfaceType::Result(_)
++                | InterfaceType::Own(_)
++                | InterfaceType::Borrow(_)
++                | InterfaceType::Future(_)
++                | InterfaceType::Stream(_)
++                | InterfaceType::ErrorContext(_)
++                | InterfaceType::FixedLengthList(_) => todo!("CM+GC"),
++            },
+             DataModel::LinearMemory(mem_opts) => Some(if mem_opts.memory64() {
+                 flat.memory64
+             } else {
+diff --git a/crates/environ/src/fact/trampoline.rs b/crates/environ/src/fact/trampoline.rs
+index 06e39b7..3f9ad18 100644
+--- a/crates/environ/src/fact/trampoline.rs
++++ b/crates/environ/src/fact/trampoline.rs
+@@ -835,17 +835,24 @@ impl<'a, 'b> Compiler<'a, 'b> {
+         // Async lowered functions have a smaller limit on flat parameters, but
+         // their destination, a lifted function, does not have a different limit
+         // than sync functions.
+-        let max_flat_params = if adapter.lower.options.async_ {
+-            MAX_FLAT_ASYNC_PARAMS
+-        } else {
+-            MAX_FLAT_PARAMS
++        let max_flat_params = match lower_opts.data_model {
++            // Under the GC data model the core function type is declared
++            // up-front via the `core-type` canonical option and maps 1:1 to the
++            // component type, so parameters are never spilled to memory.
++            DataModel::Gc {} => usize::MAX,
++            DataModel::LinearMemory(_) if adapter.lower.options.async_ => MAX_FLAT_ASYNC_PARAMS,
++            DataModel::LinearMemory(_) => MAX_FLAT_PARAMS,
+         };
+         let src_flat =
+             self.types
+                 .flatten_types(lower_opts, max_flat_params, src_tys.iter().copied());
++        let max_dst_flat_params = match lift_opts.data_model {
++            DataModel::Gc {} => usize::MAX,
++            DataModel::LinearMemory(_) => MAX_FLAT_PARAMS,
++        };
+         let dst_flat =
+             self.types
+-                .flatten_types(lift_opts, MAX_FLAT_PARAMS, dst_tys.iter().copied());
++                .flatten_types(lift_opts, max_dst_flat_params, dst_tys.iter().copied());
+ 
+         let src = if let Some(flat) = &src_flat {
+             Source::Stack(Stack {

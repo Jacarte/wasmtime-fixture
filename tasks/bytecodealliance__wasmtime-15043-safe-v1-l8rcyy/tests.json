@@ -1,0 +1,13 @@
+{
+  "FAIL_TO_PASS": [
+    "check_bool",
+    "check_char",
+    "check_enum",
+    "check_flags",
+    "check_floats",
+    "check_integers"
+  ],
+  "PASS_TO_PASS": [
+    "ordinary_component_control"
+  ]
+}

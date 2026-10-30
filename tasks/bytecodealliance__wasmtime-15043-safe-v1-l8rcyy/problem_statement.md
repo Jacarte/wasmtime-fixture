@@ -1,0 +1,1 @@
+Implement flat scalar support for the component-model GC data model: booleans, signed/unsigned integers, floats, characters, enums and flags. Support round trips and calls between GC and linear-memory data models, using their respective flat-parameter conventions. Preserve scalar canonicalization and ordinary component execution. Aggregate-type support is outside this task.

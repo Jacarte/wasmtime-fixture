@@ -1,0 +1,8 @@
+{
+  "datasets": [
+    "pepi/upstream-safe-v1"
+  ],
+  "splits": [
+    "test"
+  ]
+}

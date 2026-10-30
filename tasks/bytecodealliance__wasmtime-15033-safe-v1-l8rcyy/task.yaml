@@ -1,0 +1,14 @@
+{
+  "instance_id": "bytecodealliance__wasmtime-15033-safe-v1-l8rcyy",
+  "repo": "bytecodealliance/wasmtime",
+  "base_commit": "4e9504d5ab5b000c12bc5e0228d0d7619cacf8e1",
+  "version": "51.0.0-dev",
+  "image": "swebench/sweb.eval.x86_64.bytecodealliance_1776_wasmtime-15033-safe-v1-l8rcyy:latest",
+  "datasets": [
+    "pepi/upstream-safe-v1"
+  ],
+  "split": "test",
+  "eval_type": "pass_and_fail",
+  "log_parser": "parse_log_cargo",
+  "created_at": "2026-10-30T00:00:00Z"
+}
